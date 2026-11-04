@@ -14,7 +14,6 @@ def pedidos():
         print("Caja terminada")
         print(f"Numero de espacios disponibles en el semaforo: {semaforo._value}")    
         
-
 hilos=[]
 lock = threading.Lock()
 semaforo = threading.Semaphore(NUM_TERMINALES)
