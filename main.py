@@ -3,31 +3,44 @@ import threading
 import time
 from random import randint
 
-def pedidos():
+class GestorInventario:
+    def __init__(self, stock_inicial, reposiciones):
+        self.stock = stock_inicial
+        self.reposiciones = reposiciones
+        self.lock = threading.RLock()
+        self.condition = threading.Condition(self.lock)
 
+    def reponer_stock(self, producto):
+        with self.lock:
+            for repuesto in self.reposiciones:
+                if repuesto[1] == producto:
+                    self.stock[producto] += repuesto[2]
+                    break
+            self.condition.notify_all()
+
+    def reducir_stock(self, producto, cantidad):
+        with self.lock:
+            if self.stock[producto] < cantidad:
+                hilo_reposicion = threading.Thread(target=self.ejecutar_reposicion, args=(producto,))
+                hilo_reposicion.start()
+                while hilo_reposicion.is_alive():
+                    self.condition.wait()
+            
+            self.stock[producto] -= cantidad
+
+    def ejecutar_reposicion(self, producto):
+        with self.lock:
+            self.reponer_stock(producto)
+
+inventario = GestorInventario(STOCK_INICIAL, REPOSICIONES)
+
+def pedidos():
     with semaforo:
         for pedido in PEDIDOS:
-            for stock in STOCK_INICIAL:
-                if pedido[1]==stock:
-                    with condition:
-                        if STOCK_INICIAL[stock]<pedido[2]:
-                            hilo_reposicion =  threading.Thread(target=reposicion, args=(stock,),)
-                            hilo_reposicion.start()
-                            while hilo_reposicion.is_alive():
-                                condition.wait()
-                        STOCK_INICIAL[stock]-=pedido[2]
-                        break 
+            inventario.reducir_stock(pedido[1], pedido[2])
         print("Caja terminada")
         print(f"Numero de espacios disponibles en el semaforo: {semaforo._value}")    
     print()
-
-def reposicion(dato):
-    with condition:
-        for repuesto in REPOSICIONES:
-            if repuesto[1]==dato:
-                STOCK_INICIAL[dato]+=repuesto[2]
-                break
-        condition.notify_all()
                     
 def revision():
     tiempo_espera=randint(2,5)
@@ -36,14 +49,10 @@ def revision():
     barrera.wait()
     print("Se termino la revision de todos los datos")
 
-
-
 hilos=[]
 hilos_revison=[]
 barrera = threading.Barrier(NUM_REVISORES)
-lock = threading.Lock()
 semaforo = threading.Semaphore(NUM_TERMINALES)
-condition = threading.Condition()
 
 for _ in range(NUM_CAJAS):
     hilo = threading.Thread(
